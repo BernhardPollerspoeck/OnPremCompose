@@ -34,7 +34,7 @@ graph TB
             API[Minimal APIs<br/>- Deploy endpoints<br/>- Status endpoints<br/>- Log endpoints]
             
             subgraph "Blazor Server"
-                UI[Web Interface<br/>- Dashboard<br/>- Service Management<br/>- Log Viewer]
+                UI[Web Interface<br/>- Dashboard<br/>- Compose App Management<br/>- Log Viewer]
                 HUB[SignalR Hub<br/>Real-time Updates]
             end
             
@@ -45,7 +45,7 @@ graph TB
                 AUTH[Auth Service<br/>- API Key management<br/>- User management]
             end
             
-            DB[(SQLite Database<br/>- Users & API Keys<br/>- Deploy History<br/>- Service Status)]
+            DB[(SQLite Database<br/>- Users & API Keys<br/>- Deploy History<br/>- Compose App Status)]
         end
     end
 
@@ -107,7 +107,7 @@ docker-compose up -d
 
 ### CI/CD Integration
 
-Deploy services via the REST API:
+Deploy compose applications via the REST API:
 
 ```bash
 curl -X POST http://your-server:5000/api/deploy \
@@ -126,18 +126,28 @@ curl -X POST http://your-server:5000/api/deploy \
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/deploy` | Deploy or update a service |
-| GET | `/api/services` | List all managed services |
-| GET | `/api/services/{name}` | Get service details |
-| GET | `/api/services/{name}/logs` | Stream service logs |
-| DELETE | `/api/services/{name}` | Stop and remove service |
-| POST | `/api/services/{name}/restart` | Restart service |
+| POST | `/api/deploy` | Deploy or update a compose application |
+| GET | `/api/services` | List all managed compose applications |
+| GET | `/api/services/{name}` | Get compose application details |
+| GET | `/api/services/{name}/logs` | Stream compose application logs |
+| DELETE | `/api/services/{name}` | Stop and remove compose application |
+| POST | `/api/services/{name}/restart` | Restart compose application |
 | GET | `/api/health` | Health check endpoint |
 
 **Authentication**: All API requests require an API key in the Authorization header:
 ```
 Authorization: Bearer YOUR_API_KEY
 ```
+
+### 📝 Terminology Clarification
+
+OnPremCompose manages **Docker Compose applications** (complete deployments), not individual containers or compose services:
+
+- **Compose Application/Deployment**: A complete Docker Compose deployment managed by OnPremCompose (referenced as `{name}` in API endpoints)
+- **Compose Service**: Individual services defined within a `docker-compose.yml` file (e.g., `web`, `database`, `redis`)
+- **Service Container**: Running instances of compose services
+
+Example: A "my-app" deployment might contain `web`, `api`, and `database` compose services, each running in their own containers.
 
 ## ⚙️ Configuration
 
@@ -182,11 +192,11 @@ services:
 
 ## 📊 Monitoring & Alerts
 
-- **Real-time Health Checks**: Continuous service monitoring
+- **Real-time Health Checks**: Continuous monitoring of compose applications and their containers
 - **Email Notifications**: Instant alerts for deployment events and failures
 - **Live Log Streaming**: Real-time log viewing via web interface
-- **Performance Metrics**: Service health and performance tracking
-- **Automatic Recovery**: Self-healing capabilities for failed services
+- **Performance Metrics**: Compose application health and performance tracking
+- **Automatic Recovery**: Self-healing capabilities for failed containers and services
 
 ## 📚 Documentation
 
