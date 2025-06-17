@@ -34,18 +34,18 @@ graph TB
             API[Minimal APIs<br/>- Deploy endpoints<br/>- Status endpoints<br/>- Log endpoints]
             
             subgraph "Blazor Server"
-                UI[Web Interface<br/>- Dashboard<br/>- Compose App Management<br/>- Log Viewer]
+                UI[Web Interface<br/>- Dashboard<br/>- Stack & Container Management<br/>- Log Viewer]
                 HUB[SignalR Hub<br/>Real-time Updates]
             end
             
             subgraph "Core Services"
-                DS_SVC[Docker Service<br/>- Execute docker-compose<br/>- Monitor containers<br/>- Health checks]
+                DS_SVC[Docker Service<br/>- Execute docker-compose<br/>- Control individual containers<br/>- Monitor & health checks]
                 FILE_SVC[File Service<br/>- Manage .env files<br/>- Config templates]
                 NOTIFY[Notification Service<br/>- Email alerts<br/>- Status updates]
                 AUTH[Auth Service<br/>- API Key management<br/>- User management]
             end
             
-            DB[(SQLite Database<br/>- Users & API Keys<br/>- Deploy History<br/>- Compose App Status)]
+            DB[(SQLite Database<br/>- Users & API Keys<br/>- Deploy History<br/>- Stack & Container Status)]
         end
     end
 
@@ -107,7 +107,7 @@ docker-compose up -d
 
 ### CI/CD Integration
 
-Deploy compose applications via the REST API:
+Deploy compose stacks via the REST API:
 
 ```bash
 curl -X POST http://your-server:5000/api/deploy \
@@ -124,14 +124,27 @@ curl -X POST http://your-server:5000/api/deploy \
 
 ## 📋 API Endpoints
 
+### Stack-level Operations
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/deploy` | Deploy or update a compose application |
-| GET | `/api/services` | List all managed compose applications |
-| GET | `/api/services/{name}` | Get compose application details |
-| GET | `/api/services/{name}/logs` | Stream compose application logs |
-| DELETE | `/api/services/{name}` | Stop and remove compose application |
-| POST | `/api/services/{name}/restart` | Restart compose application |
+| POST | `/api/deploy` | Deploy or update a compose stack |
+| GET | `/api/services` | List all managed compose stacks |
+| GET | `/api/services/{name}` | Get compose stack details |
+| GET | `/api/services/{name}/logs` | Stream compose stack logs |
+| DELETE | `/api/services/{name}` | Stop and remove compose stack |
+| POST | `/api/services/{name}/restart` | Restart compose stack |
+
+### Container-level Operations
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/services/{name}/containers/{container}/start` | Start individual container |
+| POST | `/api/services/{name}/containers/{container}/stop` | Stop individual container |
+| POST | `/api/services/{name}/containers/{container}/restart` | Restart individual container |
+| GET | `/api/services/{name}/containers/{container}/logs` | Stream individual container logs |
+
+### General
+| Method | Endpoint | Description |
+|--------|----------|-------------|
 | GET | `/api/health` | Health check endpoint |
 
 **Authentication**: All API requests require an API key in the Authorization header:
@@ -141,13 +154,17 @@ Authorization: Bearer YOUR_API_KEY
 
 ### 📝 Terminology Clarification
 
-OnPremCompose manages **Docker Compose applications** (complete deployments), not individual containers or compose services:
+OnPremCompose primarily manages **Docker Compose stacks** while also providing control over individual containers:
 
-- **Compose Application/Deployment**: A complete Docker Compose deployment managed by OnPremCompose (referenced as `{name}` in API endpoints)
+- **Compose Stack/Application**: A complete Docker Compose deployment managed by OnPremCompose (referenced as `{name}` in API endpoints)
 - **Compose Service**: Individual services defined within a `docker-compose.yml` file (e.g., `web`, `database`, `redis`)
-- **Service Container**: Running instances of compose services
+- **Service Container**: Running instances of compose services that can be individually controlled
 
-Example: A "my-app" deployment might contain `web`, `api`, and `database` compose services, each running in their own containers.
+**Management Capabilities:**
+- **Stack-level operations**: Deploy, update, restart, and remove entire compose stacks
+- **Container-level operations**: Start, stop, and restart individual containers within a compose stack
+
+Example: A "my-app" stack contains `web`, `api`, and `database` compose services. You can restart the entire "my-app" stack or just restart the individual `web` container.
 
 ## ⚙️ Configuration
 
@@ -192,10 +209,10 @@ services:
 
 ## 📊 Monitoring & Alerts
 
-- **Real-time Health Checks**: Continuous monitoring of compose applications and their containers
+- **Real-time Health Checks**: Continuous monitoring of compose stacks and their containers
 - **Email Notifications**: Instant alerts for deployment events and failures
 - **Live Log Streaming**: Real-time log viewing via web interface
-- **Performance Metrics**: Compose application health and performance tracking
+- **Performance Metrics**: Compose stack health and performance tracking
 - **Automatic Recovery**: Self-healing capabilities for failed containers and services
 
 ## 📚 Documentation
