@@ -1,0 +1,186 @@
+@page "/history"
+@rendermode InteractiveServer
+@inject ApplicationDbContext DbContext
+@inject ILogger<History> Logger
+
+<PageTitle>History - OnPremCompose</PageTitle>
+
+<div class="history-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Deployment History</h1>
+        <button class="btn btn-primary" @onclick="LoadHistory">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    }
+    else if (history.Any())
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Action</th>
+                        <th>Status</th>
+                        <th>Started</th>
+                        <th>Completed</th>
+                        <th>Duration</th>
+                        <th>User</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in history)
+                    {
+                        <tr>
+                            <td><strong>@item.ServiceName</strong></td>
+                            <td>
+                                <span class="badge bg-info">@item.Action.ToUpper()</span>
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadge(item.Status)">
+                                    @item.Status.ToUpper()
+                                </span>
+                            </td>
+                            <td>@item.StartedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>@(item.CompletedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                            <td>
+                                @if (item.CompletedAt.HasValue)
+                                {
+                                    var duration = item.CompletedAt.Value - item.StartedAt;
+                                    <text>@duration.TotalSeconds.ToString("F1")s</text>
+                                }
+                                else
+                                {
+                                    <text>-</text>
+                                }
+                            </td>
+                            <td>@(item.User?.Username ?? "System")</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => ShowDetails(item)">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (selectedItem != null)
+        {
+            <div class="modal" style="display: block; background-color: rgba(0,0,0,0.5);" @onclick="CloseDetails">
+                <div class="modal-dialog modal-lg" @onclick:stopPropagation="true">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Deployment Details: @selectedItem.ServiceName</h5>
+                            <button type="button" class="btn-close" @onclick="CloseDetails"></button>
+                        </div>
+                        <div class="modal-body">
+                            <dl class="row">
+                                <dt class="col-sm-3">Service Name</dt>
+                                <dd class="col-sm-9">@selectedItem.ServiceName</dd>
+
+                                <dt class="col-sm-3">Action</dt>
+                                <dd class="col-sm-9">@selectedItem.Action</dd>
+
+                                <dt class="col-sm-3">Status</dt>
+                                <dd class="col-sm-9">
+                                    <span class="badge @GetStatusBadge(selectedItem.Status)">
+                                        @selectedItem.Status
+                                    </span>
+                                </dd>
+
+                                <dt class="col-sm-3">User</dt>
+                                <dd class="col-sm-9">@(selectedItem.User?.Username ?? "System")</dd>
+
+                                <dt class="col-sm-3">Started At</dt>
+                                <dd class="col-sm-9">@selectedItem.StartedAt.ToString("yyyy-MM-dd HH:mm:ss")</dd>
+
+                                <dt class="col-sm-3">Completed At</dt>
+                                <dd class="col-sm-9">@(selectedItem.CompletedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Not completed")</dd>
+                            </dl>
+
+                            @if (!string.IsNullOrEmpty(selectedItem.ErrorMessage))
+                            {
+                                <h6 class="text-danger">Error Message:</h6>
+                                <pre class="alert alert-danger"><code>@selectedItem.ErrorMessage</code></pre>
+                            }
+
+                            @if (!string.IsNullOrEmpty(selectedItem.ComposeFileContent))
+                            {
+                                <h6>Compose File:</h6>
+                                <pre class="bg-light p-3"><code>@selectedItem.ComposeFileContent</code></pre>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseDetails">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info">
+            No deployment history available.
+        </div>
+    }
+</div>
+
+@code {
+    private List<DeploymentHistory> history = new();
+    private bool loading = true;
+    private DeploymentHistory? selectedItem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistory();
+    }
+
+    private async Task LoadHistory()
+    {
+        loading = true;
+        try
+        {
+            history = await DbContext.DeploymentHistory
+                .Include(h => h.User)
+                .OrderByDescending(h => h.StartedAt)
+                .Take(100)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load deployment history");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ShowDetails(DeploymentHistory item)
+    {
+        selectedItem = item;
+    }
+
+    private void CloseDetails()
+    {
+        selectedItem = null;
+    }
+
+    private string GetStatusBadge(string status) => status.ToLower() switch
+    {
+        "success" => "bg-success",
+        "failed" => "bg-danger",
+        "in_progress" => "bg-warning",
+        _ => "bg-secondary"
+    };
+}

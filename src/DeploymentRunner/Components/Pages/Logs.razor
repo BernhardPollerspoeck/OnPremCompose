@@ -1,0 +1,135 @@
+@page "/logs"
+@rendermode InteractiveServer
+@inject IDockerService DockerService
+@inject ILogger<Logs> Logger
+
+<PageTitle>Logs - OnPremCompose</PageTitle>
+
+<div class="logs-page">
+    <h1>Service Logs</h1>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Select Service</label>
+                    <select class="form-select" @bind="selectedService" @bind:after="LoadLogs">
+                        <option value="">-- Select a service --</option>
+                        @foreach (var service in services)
+                        {
+                            <option value="@service.Name">@service.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Lines</label>
+                    <select class="form-select" @bind="logLines">
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                        <option value="1000">1000</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" @onclick="LoadLogs" disabled="@string.IsNullOrEmpty(selectedService)">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(logs))
+    {
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Logs: @selectedService</span>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CopyLogs">
+                    <i class="bi bi-clipboard"></i> Copy
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <pre class="log-viewer mb-0"><code>@logs</code></pre>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(selectedService))
+    {
+        <div class="alert alert-info">
+            No logs available for this service.
+        </div>
+    }
+</div>
+
+<style>
+    .log-viewer {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        padding: 1rem;
+        max-height: 70vh;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+</style>
+
+@code {
+    private List<ServiceStatus> services = new();
+    private string selectedService = "";
+    private int logLines = 100;
+    private string logs = "";
+    private bool loading = false;
+
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServices();
+    }
+
+    private async Task LoadServices()
+    {
+        try
+        {
+            services = await DockerService.GetAllServicesStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load services");
+        }
+    }
+
+    private async Task LoadLogs()
+    {
+        if (string.IsNullOrEmpty(selectedService))
+            return;
+
+        loading = true;
+        try
+        {
+            logs = await DockerService.GetServiceLogsAsync(selectedService, logLines);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load logs");
+            logs = $"Error loading logs: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task CopyLogs()
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", logs);
+    }
+}

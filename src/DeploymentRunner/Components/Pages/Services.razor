@@ -1,0 +1,197 @@
+@page "/services"
+@rendermode InteractiveServer
+@inject IDockerService DockerService
+@inject ILogger<Services> Logger
+
+<PageTitle>Services - OnPremCompose</PageTitle>
+
+<div class="services-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Services</h1>
+        <button class="btn btn-primary" @onclick="LoadServices">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    }
+    else if (services.Any())
+    {
+        @foreach (var service in services)
+        {
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            @service.Name
+                            <span class="badge @GetStatusBadgeClass(service.Status) ms-2">@service.Status</span>
+                        </h5>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-success" @onclick="() => RestartService(service.Name)" title="Restart">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning" @onclick="() => StopService(service.Name)" title="Stop">
+                            <i class="bi bi-stop-circle"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteService(service.Name)" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h6>Containers (@service.Containers.Count)</h6>
+                    @if (service.Containers.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Image</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var container in service.Containers)
+                                    {
+                                        <tr>
+                                            <td><code>@container.Name</code></td>
+                                            <td>@container.Image</td>
+                                            <td>
+                                                <span class="badge @GetContainerStatusBadge(container.Status)">
+                                                    @container.Status
+                                                </span>
+                                            </td>
+                                            <td>@container.Created.ToString("yyyy-MM-dd HH:mm")</td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-outline-success" @onclick="() => StartContainer(service.Name, container.Name)" title="Start">
+                                                        <i class="bi bi-play-fill"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-warning" @onclick="() => StopContainer(service.Name, container.Name)" title="Stop">
+                                                        <i class="bi bi-stop-fill"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline-primary" @onclick="() => RestartContainer(service.Name, container.Name)" title="Restart">
+                                                        <i class="bi bi-arrow-repeat"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No containers found</p>
+                    }
+
+                    @if (!string.IsNullOrEmpty(service.ComposeFile))
+                    {
+                        <details class="mt-3">
+                            <summary class="btn btn-sm btn-outline-secondary">View Compose File</summary>
+                            <pre class="mt-2 p-3 bg-light"><code>@service.ComposeFile</code></pre>
+                        </details>
+                    }
+                </div>
+                <div class="card-footer text-muted">
+                    Last updated: @service.LastUpdated.ToString("yyyy-MM-dd HH:mm:ss")
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info">
+            No services deployed yet.
+        </div>
+    }
+</div>
+
+@code {
+    private List<ServiceStatus> services = new();
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServices();
+    }
+
+    private async Task LoadServices()
+    {
+        loading = true;
+        try
+        {
+            services = await DockerService.GetAllServicesStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load services");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task RestartService(string serviceName)
+    {
+        await DockerService.RestartServiceAsync(serviceName);
+        await LoadServices();
+    }
+
+    private async Task StopService(string serviceName)
+    {
+        await DockerService.StopServiceAsync(serviceName);
+        await LoadServices();
+    }
+
+    private async Task DeleteService(string serviceName)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", $"Delete service '{serviceName}'? This cannot be undone."))
+        {
+            await DockerService.DeleteServiceAsync(serviceName);
+            await LoadServices();
+        }
+    }
+
+    private async Task StartContainer(string serviceName, string containerName)
+    {
+        await DockerService.StartContainerAsync(serviceName, containerName);
+        await LoadServices();
+    }
+
+    private async Task StopContainer(string serviceName, string containerName)
+    {
+        await DockerService.StopContainerAsync(serviceName, containerName);
+        await LoadServices();
+    }
+
+    private async Task RestartContainer(string serviceName, string containerName)
+    {
+        await DockerService.RestartContainerAsync(serviceName, containerName);
+        await LoadServices();
+    }
+
+    private string GetStatusBadgeClass(string status) => status.ToLower() switch
+    {
+        "running" => "bg-success",
+        "stopped" => "bg-warning",
+        "failed" => "bg-danger",
+        "partial" => "bg-info",
+        _ => "bg-secondary"
+    };
+
+    private string GetContainerStatusBadge(string status) =>
+        status.Contains("running", StringComparison.OrdinalIgnoreCase) ? "bg-success" : "bg-secondary";
+
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+}

@@ -1,0 +1,201 @@
+@page "/apikeys"
+@rendermode InteractiveServer
+@inject IAuthService AuthService
+@inject ApplicationDbContext DbContext
+
+<PageTitle>API Keys - OnPremCompose</PageTitle>
+
+<div class="apikeys-page">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>API Keys</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateDialog">
+            <i class="bi bi-plus-circle"></i> Create New Key
+        </button>
+    </div>
+
+    @if (showCreateDialog)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Create New API Key</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control" @bind="newKeyDescription" placeholder="e.g., CI/CD Pipeline Key" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">User</label>
+                    <select class="form-select" @bind="selectedUserId">
+                        @foreach (var user in users)
+                        {
+                            <option value="@user.Id">@user.Username (@user.Email)</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" @bind="setExpiration" id="setExpiration" />
+                    <label class="form-check-label" for="setExpiration">
+                        Set expiration date
+                    </label>
+                </div>
+                @if (setExpiration)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Expires At</label>
+                        <input type="date" class="form-control" @bind="expirationDate" />
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(newlyCreatedKey))
+                {
+                    <div class="alert alert-success">
+                        <h6>API Key Created!</h6>
+                        <p class="mb-2">Save this key securely. It won't be shown again.</p>
+                        <div class="input-group">
+                            <input type="text" class="form-control font-monospace" value="@newlyCreatedKey" readonly />
+                            <button class="btn btn-outline-secondary" @onclick="CopyKey">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="CreateKey" disabled="@string.IsNullOrWhiteSpace(newKeyDescription)">
+                        <i class="bi bi-key"></i> Generate Key
+                    </button>
+                    <button class="btn btn-secondary" @onclick="() => { showCreateDialog = false; newlyCreatedKey = null; }">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (loading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border" role="status"></div>
+        </div>
+    }
+    else if (apiKeys.Any())
+    {
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>User</th>
+                        <th>Created</th>
+                        <th>Last Used</th>
+                        <th>Expires</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var key in apiKeys)
+                    {
+                        <tr>
+                            <td>@key.Description</td>
+                            <td>@key.User?.Username</td>
+                            <td>@key.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td>@(key.LastUsedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</td>
+                            <td>@(key.ExpiresAt?.ToString("yyyy-MM-dd") ?? "Never")</td>
+                            <td>
+                                <span class="badge @(key.IsActive ? "bg-success" : "bg-danger")">
+                                    @(key.IsActive ? "Active" : "Revoked")
+                                </span>
+                            </td>
+                            <td>
+                                @if (key.IsActive)
+                                {
+                                    <button class="btn btn-sm btn-danger" @onclick="() => RevokeKey(key.Id)">
+                                        <i class="bi bi-x-circle"></i> Revoke
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            No API keys created yet.
+        </div>
+    }
+</div>
+
+@code {
+    private List<Data.ApiKey> apiKeys = new();
+    private List<Data.User> users = new();
+    private bool loading = true;
+    private bool showCreateDialog = false;
+    private string newKeyDescription = "";
+    private int selectedUserId = 1;
+    private bool setExpiration = false;
+    private DateTime? expirationDate;
+    private string? newlyCreatedKey;
+
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            users = await DbContext.Users.ToListAsync();
+            if (users.Any())
+            {
+                selectedUserId = users.First().Id;
+                apiKeys = await AuthService.GetUserApiKeysAsync(selectedUserId);
+            }
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ShowCreateDialog()
+    {
+        showCreateDialog = true;
+        newlyCreatedKey = null;
+    }
+
+    private async Task CreateKey()
+    {
+        var expires = setExpiration ? expirationDate : null;
+        newlyCreatedKey = await AuthService.CreateApiKeyAsync(selectedUserId, newKeyDescription, expires);
+        await LoadData();
+        newKeyDescription = "";
+        setExpiration = false;
+        expirationDate = null;
+    }
+
+    private async Task RevokeKey(int keyId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Revoke this API key? This cannot be undone."))
+        {
+            await AuthService.RevokeApiKeyAsync(keyId);
+            await LoadData();
+        }
+    }
+
+    private async Task CopyKey()
+    {
+        if (!string.IsNullOrEmpty(newlyCreatedKey))
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", newlyCreatedKey);
+        }
+    }
+}

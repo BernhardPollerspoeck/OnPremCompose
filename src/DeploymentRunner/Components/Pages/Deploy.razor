@@ -1,0 +1,168 @@
+@page "/deploy"
+@rendermode InteractiveServer
+@inject IDockerService DockerService
+@inject NavigationManager Navigation
+
+<PageTitle>Deploy - OnPremCompose</PageTitle>
+
+<div class="deploy-page">
+    <h1>Deploy New Service</h1>
+
+    <div class="card">
+        <div class="card-body">
+            <EditForm Model="@request" OnValidSubmit="@HandleDeploy">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label">Service Name</label>
+                    <InputText class="form-control" @bind-Value="request.ServiceName" placeholder="my-service" />
+                    <div class="form-text">Unique name for your service (no spaces)</div>
+                    <ValidationMessage For="@(() => request.ServiceName)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Docker Compose File</label>
+                    <InputTextArea class="form-control font-monospace" @bind-Value="request.ComposeFile" rows="15" />
+                    <div class="form-text">Paste your docker-compose.yml content here</div>
+                    <ValidationMessage For="@(() => request.ComposeFile)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Environment Variables (optional)</label>
+                    <textarea class="form-control font-monospace" @bind="environmentText" rows="5" placeholder="KEY1=value1&#10;KEY2=value2"></textarea>
+                    <div class="form-text">One variable per line in KEY=VALUE format</div>
+                </div>
+
+                <div class="mb-3 form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="request.PullImages" id="pullImages" />
+                    <label class="form-check-label" for="pullImages">
+                        Pull latest images before deployment
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> @errorMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> @successMessage
+                    </div>
+                }
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@isDeploying">
+                        @if (isDeploying)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Deploying...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-rocket-takeoff me-2"></i>
+                            <span>Deploy</span>
+                        }
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="LoadExample">
+                        Load Example
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="Clear">
+                        Clear
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private DeploymentRequest request = new() { ServiceName = "", ComposeFile = "", PullImages = true };
+    private string environmentText = "";
+    private bool isDeploying = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private async Task HandleDeploy()
+    {
+        isDeploying = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Parse environment variables
+            if (!string.IsNullOrWhiteSpace(environmentText))
+            {
+                request.Environment = ParseEnvironmentVariables(environmentText);
+            }
+
+            var result = await DockerService.DeployServiceAsync(request);
+
+            if (result.Status == "success")
+            {
+                successMessage = $"Service '{request.ServiceName}' deployed successfully!";
+                await Task.Delay(1500);
+                Navigation.NavigateTo("/services");
+            }
+            else
+            {
+                errorMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Deployment failed: {ex.Message}";
+        }
+        finally
+        {
+            isDeploying = false;
+        }
+    }
+
+    private Dictionary<string, string> ParseEnvironmentVariables(string text)
+    {
+        var env = new Dictionary<string, string>();
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var line in lines)
+        {
+            var parts = line.Split('=', 2);
+            if (parts.Length == 2)
+            {
+                env[parts[0].Trim()] = parts[1].Trim();
+            }
+        }
+
+        return env;
+    }
+
+    private void LoadExample()
+    {
+        request.ServiceName = "nginx-example";
+        request.ComposeFile = @"version: '3.8'
+
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - ""8080:80""
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    restart: unless-stopped";
+
+        environmentText = "ENV=production\nLOG_LEVEL=info";
+    }
+
+    private void Clear()
+    {
+        request = new() { ServiceName = "", ComposeFile = "", PullImages = true };
+        environmentText = "";
+        errorMessage = null;
+        successMessage = null;
+    }
+}
