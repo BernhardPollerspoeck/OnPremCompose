@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  onpremcompose:
+    image: ghcr.io/bernhardpollerspoeck/onpremcompose:latest
+    container_name: onpremcompose
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount Docker socket to manage other containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persistent data
+      - ./data:/app/data
+      - ./deployments:/app/deployments
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+      # Optional: Configure email notifications
+      # - Email__SmtpHost=smtp.gmail.com
+      # - Email__SmtpPort=587
+      # - Email__Username=your-email@gmail.com
+      # - Email__Password=your-app-password
+    restart: unless-stopped
+    networks:
+      - onpremcompose-network
+
+networks:
+  onpremcompose-network:
+    driver: bridge

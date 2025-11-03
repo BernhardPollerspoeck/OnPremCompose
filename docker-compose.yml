@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  onpremcompose:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: onpremcompose:latest
+    container_name: onpremcompose
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount Docker socket to manage other containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persistent data
+      - ./data:/app/data
+      - ./deployments:/app/deployments
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+    restart: unless-stopped
+    networks:
+      - onpremcompose-network
+
+networks:
+  onpremcompose-network:
+    driver: bridge

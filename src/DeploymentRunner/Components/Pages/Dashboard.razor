@@ -1,0 +1,179 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IDockerService DockerService
+@inject ILogger<Dashboard> Logger
+
+<PageTitle>Dashboard - OnPremCompose</PageTitle>
+
+<div class="dashboard">
+    <h1>Dashboard</h1>
+
+    @if (loading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Running</h5>
+                        <h2 class="mb-0">@runningCount</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Stopped</h5>
+                        <h2 class="mb-0">@stoppedCount</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Failed</h5>
+                        <h2 class="mb-0">@failedCount</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Services</h5>
+                        <h2 class="mb-0">@services.Count</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>Services Overview</h3>
+            <button class="btn btn-sm btn-primary" @onclick="LoadServices">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+
+        @if (services.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Service Name</th>
+                            <th>Status</th>
+                            <th>Containers</th>
+                            <th>Last Updated</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var service in services)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@service.Name</strong>
+                                </td>
+                                <td>
+                                    <span class="badge @GetStatusBadgeClass(service.Status)">
+                                        @service.Status.ToUpper()
+                                    </span>
+                                </td>
+                                <td>@service.Containers.Count containers</td>
+                                <td>@service.LastUpdated.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" @onclick="() => RestartService(service.Name)">
+                                        <i class="bi bi-arrow-repeat"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-warning" @onclick="() => StopService(service.Name)">
+                                        <i class="bi bi-stop-circle"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> No services deployed yet. <a href="/deploy">Deploy your first service</a>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<ServiceStatus> services = new();
+    private bool loading = true;
+    private int runningCount => services.Count(s => s.Status == "running");
+    private int stoppedCount => services.Count(s => s.Status == "stopped");
+    private int failedCount => services.Count(s => s.Status == "failed");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServices();
+    }
+
+    private async Task LoadServices()
+    {
+        loading = true;
+        try
+        {
+            services = await DockerService.GetAllServicesStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load services");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task RestartService(string serviceName)
+    {
+        try
+        {
+            await DockerService.RestartServiceAsync(serviceName);
+            await LoadServices();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to restart service: {ServiceName}", serviceName);
+        }
+    }
+
+    private async Task StopService(string serviceName)
+    {
+        try
+        {
+            await DockerService.StopServiceAsync(serviceName);
+            await LoadServices();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to stop service: {ServiceName}", serviceName);
+        }
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status.ToLower() switch
+        {
+            "running" => "bg-success",
+            "stopped" => "bg-warning",
+            "failed" => "bg-danger",
+            "partial" => "bg-info",
+            _ => "bg-secondary"
+        };
+    }
+}

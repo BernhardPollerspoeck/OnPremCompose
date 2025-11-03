@@ -1,0 +1,70 @@
+<div class="nav-menu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+                <i class="bi bi-house-door"></i> Dashboard
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="services">
+                <i class="bi bi-box-seam"></i> Services
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="deploy">
+                <i class="bi bi-rocket-takeoff"></i> Deploy
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="logs">
+                <i class="bi bi-terminal"></i> Logs
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="apikeys">
+                <i class="bi bi-key"></i> API Keys
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="history">
+                <i class="bi bi-clock-history"></i> History
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+<style>
+    .nav-menu {
+        margin-top: 1rem;
+    }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        color: #495057;
+        text-decoration: none;
+        border-radius: 0.25rem;
+        transition: all 0.2s;
+    }
+
+    .nav-link:hover {
+        background-color: #e9ecef;
+        color: #212529;
+    }
+
+    .nav-link.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+    .nav-link i {
+        font-size: 1.2rem;
+    }
+</style>

@@ -404,3 +404,12 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# OnPremCompose specific
+data/
+deployments/
+backups/
+logs/
+*.db
+*.db-shm
+*.db-wal
